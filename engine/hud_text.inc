@@ -55,20 +55,28 @@ inline int hud_text_height(const std::string& s) {
 }
 
 // One white glyph texture (alpha mask), tinted per draw with SDL colour mod.
-SDL_Texture* hud_glyph_tex(ra2engine::TextureCache& tc, uint32_t cp) {
-    const std::string key = "ug:" + std::to_string(cp);
+// `mag` = the on-screen magnification (text scale x SDL logical->device
+// factor). A fractional one gets the sharp-bilinear texture (see
+// fnt_glyph_tex in main.cpp): pre-upscaled by the next integer, drawn linear.
+SDL_Texture* hud_glyph_tex(ra2engine::TextureCache& tc, uint32_t cp, double mag = 1.0) {
+    const int n = static_cast<int>(std::ceil(mag - 1e-3));
+    const int k = (n <= 1 || std::fabs(mag - std::lround(mag)) < 1e-3) ? 1 : std::min(n, 8);
+    const std::string key = "ug:" + std::to_string(cp) + (k > 1 ? "@x" + std::to_string(k) : std::string());
     SDL_Texture* tex = static_cast<SDL_Texture*>(tc.peek(key));
     if (tex) return tex;
     const int w = g_hud_font->width(cp), h = g_hud_font->rows() - kHudTrimTop;
     if (w <= 0 || h <= 0) return nullptr;
-    std::vector<uint8_t> rgba(static_cast<size_t>(w) * h * 4, 0);
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x)
-            if (g_hud_font->pixel(cp, x, y + kHudTrimTop)) {
-                uint8_t* p = &rgba[(static_cast<size_t>(y) * w + x) * 4];
+    const int W = w * k, H = h * k;
+    std::vector<uint8_t> rgba(static_cast<size_t>(W) * H * 4, 0);
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            if (g_hud_font->pixel(cp, x / k, y / k + kHudTrimTop)) {
+                uint8_t* p = &rgba[(static_cast<size_t>(y) * W + x) * 4];
                 p[0] = p[1] = p[2] = p[3] = 255;
             }
-    return static_cast<SDL_Texture*>(tc.get_rgba(key, rgba.data(), w, h));
+    tex = static_cast<SDL_Texture*>(tc.get_rgba(key, rgba.data(), W, H));
+    if (tex && k > 1) SDL_SetTextureScaleMode(tex, SDL_ScaleModeLinear);
+    return tex;
 }
 
 enum HudAlign { kHudLeft = 0, kHudCenter = 1, kHudRight = 2 };
@@ -82,6 +90,13 @@ SDL_Rect hud_text_rect(const std::string& s, int x, int y, int align) {
 
 // Draw `s` (UTF-8, '\n' = new line; each line aligned on its own) at anchor
 // (x, y). `backing` = the 0xAF black box; `shadow` = FullShadow.
+// The SDL logical->device factor (1 when no logical size is set).
+inline double hud_render_scale(SDL_Renderer* ren) {
+    float sx = 1.0f, sy = 1.0f;
+    SDL_RenderGetScale(ren, &sx, &sy);
+    return std::max(sx, sy);
+}
+
 void hud_text(SDL_Renderer* ren, ra2engine::TextureCache& tc, const std::string& s, int x, int y,
               SDL_Color col, int align = kHudLeft, bool backing = false, bool shadow = true,
               double scale = 1.0) {
@@ -111,7 +126,7 @@ void hud_text(SDL_Renderer* ren, ra2engine::TextureCache& tc, const std::string&
         for (uint32_t cp : ra2assets::UFont::decode_utf8(ln)) {
             const int gw = g_hud_font->width(cp);
             if (gw > 0) {
-                if (SDL_Texture* t = hud_glyph_tex(tc, cp)) {
+                if (SDL_Texture* t = hud_glyph_tex(tc, cp, scale * hud_render_scale(ren))) {
                     const int gh = g_hud_font->rows() - kHudTrimTop;
                     auto put = [&](double dx, double dy, SDL_Color c) {
                         SDL_SetTextureColorMod(t, c.r, c.g, c.b);
@@ -242,8 +257,7 @@ inline int hud_text_rgb(SDL_Renderer* ren, ra2engine::TextureCache& tc, const ra
             const ra2assets::FntGlyph& gl = font.glyph(ch);
             if (gl.w > 0 && gl.h > 0) {
                 const std::string key = "fntw:" + std::to_string((int)ch);
-                SDL_Texture* tex = static_cast<SDL_Texture*>(tc.peek(key));
-                if (!tex) tex = static_cast<SDL_Texture*>(tc.get(key, gl.pixels.data(), gl.w, gl.h, white));
+                SDL_Texture* tex = fnt_glyph_tex(ren, tc, key, gl, white, 1.0);
                 const SDL_Rect dst{cx, y, gl.w, gl.h};
                 SDL_SetTextureColorMod(tex, r, g, b);
                 SDL_RenderCopy(ren, tex, nullptr, &dst);
