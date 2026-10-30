@@ -8668,7 +8668,7 @@ struct OptionsPageState {
         return m;
     }
     static bool res_supported() {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(RA2_IOS)
         return false;
 #else
         return true;
@@ -8912,7 +8912,7 @@ private:
                 return {
                     btn(0, "Keyboard",  true,  ACT_KEYBOARD, PAGE_OPTIONS),
                     btn(1, "Network",   false, ACT_GOTO, PAGE_MAIN),
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(RA2_IOS)
                     // W6-06-05 [engine affordance]: add or replace game files
                     // at any time (the launcher only offers it when a
                     // required file is missing).
@@ -9520,7 +9520,14 @@ void MainMenuScene::handle(const ra2engine::InputEvent& ev) {
                     opt_.commit(*g_user_settings);
                     save_user_settings(*g_user_settings);
                 }
+#ifdef RA2_IOS
+                // iOS: the importer runs in place (a modal folder picker);
+                // the files are read on the next start, so quit when it
+                // copied something (the importer has told the player).
+                if (ra2engine::os_ios_import_game_files(/*restart_note=*/true) > 0) quit_ = true;
+#else
                 if (ra2engine::os_android_open_importer()) quit_ = true;
+#endif
                 return;
             case ACT_CAMPAIGN_LOAD:   // W2-UI-18: 0x94 Load = the selected campaign
                 if (camp_.selected() >= 0 && camp_.selected() < CampaignPageState::kEntries) {
@@ -18713,8 +18720,8 @@ int main(int argc, char** argv) {
     SDL_SetMainReady();   // Net L0: plain executable, no SDLActivity
 #endif
     try {
-#if defined(__ANDROID__) && !defined(RA2_ANDROID_CLI)
-        // Android launches straight into the interactive engine: there is no
+#if (defined(__ANDROID__) && !defined(RA2_ANDROID_CLI)) || defined(RA2_IOS)
+        // Android / iOS launch straight into the interactive engine: there is no
         // CLI, so the desktop-only verification modes (--screenshot/--demo-*)
         // are unreachable here. Touch drives select/move (see platform.cpp
         // SDL_FINGER* handling + input.cpp).

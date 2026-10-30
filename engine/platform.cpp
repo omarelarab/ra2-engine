@@ -35,7 +35,7 @@ struct Platform::Impl {
     // dp on a 420-dpi phone, so a rolling fingertip turned taps into
     // ignored drags. Never below the old 12 px; desktop unchanged.
     void update_slop() {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(RA2_IOS)
         float ddpi = 0.0f;
         int ow = 0, oh = 0;
         if (SDL_GetDisplayDPI(0, &ddpi, nullptr, nullptr) != 0 || ddpi <= 0.0f) return;
@@ -51,6 +51,13 @@ Platform Platform::create(const char* title, int w, int h, bool hidden) {
     // arrive twice = a double-click); fingers go through TouchGestures. The
     // SDL_TOUCH_MOUSEID filter in poll() backs this up.
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+#ifdef RA2_IOS
+    // iOS: landscape only (Info.plist agrees); the home indicator dims and a
+    // first swipe from an edge goes to the game (the second one to iOS), so a
+    // drag along the bottom of the map does not leave the app.
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    SDL_SetHint(SDL_HINT_IOS_HIDE_HOME_INDICATOR, "2");
+#endif
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         throw std::runtime_error(SDL_GetError());
     }
@@ -61,6 +68,11 @@ Platform Platform::create(const char* title, int w, int h, bool hidden) {
     // hidden, the whole panel) for a FULLSCREEN window; a plain SHOWN window
     // got 1794x1017 of a 1920x1080 phone with both bars visible.
     flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+#elif defined(RA2_IOS)
+    // iOS: a fullscreen window (no status bar) at native pixels -- without
+    // ALLOW_HIGHDPI the renderer output is in points and the dp-based UI
+    // sizing in app_robust.inc (physical DPI) would come out 2-3x too big.
+    flags |= SDL_WINDOW_FULLSCREEN_DESKTOP | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_BORDERLESS;
 #endif
     SDL_Window* window = SDL_CreateWindow(
         title,

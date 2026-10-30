@@ -73,13 +73,15 @@ struct MpOptions {
     int tech_level = 10;
     // NET-PLAY (clone extensions, 05-transport-infra.md §6.3 / §7):
     bool ai_takeover = false;      // a player who leaves / drops: an AI takes the house over (else defeated)
-    bool cross_platform = false;   // "Cross-platform (experimental)": admit Windows + Android peers
+    bool cross_platform = false;   // "Cross-platform (experimental)": admit Windows + Android + iOS peers
 };
 
 // NET-PLAY: this build's platform tag for the lobby handshake
-// (1 Windows / desktop, 2 Android arm64, 3 Android x86_64).
+// (1 Windows / desktop, 2 Android arm64, 3 Android x86_64, 4 iOS arm64).
 inline std::uint8_t platform_code() {
-#if defined(__ANDROID__) && defined(__aarch64__)
+#if defined(RA2_IOS)
+    return 4;
+#elif defined(__ANDROID__) && defined(__aarch64__)
     return 2;
 #elif defined(__ANDROID__)
     return 3;
@@ -94,6 +96,7 @@ inline const char* platform_name(std::uint8_t code) {
         case 1: return "PC";
         case 2: return "Android";
         case 3: return "Android x86";
+        case 4: return "iOS";
         default: return "";
     }
 }

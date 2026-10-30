@@ -1,0 +1,7 @@
+# xtool project for the iOS build (see ios/README.md). Build with
+# ios/scripts/build.sh, which prepares SDL2 + generated headers first.
+version: 1
+bundleID: org.ra2.engine
+product: RA2Engine
+infoPath: ios/Info.plist
+iconPath: ios/AppIcon.png

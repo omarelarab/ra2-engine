@@ -41,4 +41,20 @@ int os_android_bind_lan(bool on);
 // --play harness's `lifecycle relaunch`.
 void os_set_keep_autosave(bool keep);
 bool os_keep_autosave();
+#ifdef RA2_IOS
+// iOS (engine/platform_ios.mm, compiled only in the iOS build):
+// the app's Documents folder (no trailing '/'; shared with the Files app and
+// Finder file sharing through Info.plist).
+std::string os_ios_documents_dir();
+// <app bundle>/GameData when a personal test build bundled the game files
+// there (ios/scripts/link_game_data.sh), else "".
+std::string os_ios_bundle_data_dir();
+// The in-app importer: a modal Files folder picker; the engine-read files
+// in the picked folder (one sub-folder level, like Android's SetupActivity)
+// are copied into Documents/ra2/ under their canonical names. Blocks (the
+// UIKit run loop keeps running) and returns the number of files copied,
+// 0 when cancelled, -1 on an error (already shown to the player).
+// restart_note: on success, tell the player the files load on the next start.
+int os_ios_import_game_files(bool restart_note);
+#endif
 }  // namespace ra2engine

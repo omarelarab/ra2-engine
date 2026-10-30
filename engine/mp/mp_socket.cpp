@@ -27,6 +27,9 @@ using socklen_t = int;
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <ifaddrs.h>
+#endif
 #endif
 
 namespace ra2mp {
@@ -151,6 +154,22 @@ std::vector<LocalIf> interfaces() {
         }
     }
     ::closesocket(s);
+#elif defined(__APPLE__)
+    // iOS / macOS: getifaddrs. (SIOCGIFCONF records are variable-length on
+    // BSD -- sa_len -- so the fixed-stride walk below would misread them, and
+    // BSD's ifreq has no ifr_netmask.)
+    ifaddrs* list = nullptr;
+    if (::getifaddrs(&list) != 0) return out;
+    for (const ifaddrs* a = list; a; a = a->ifa_next) {
+        if (!a->ifa_addr || a->ifa_addr->sa_family != AF_INET) continue;
+        if (!(a->ifa_flags & IFF_UP)) continue;
+        const std::uint32_t ip = ntohl(reinterpret_cast<const sockaddr_in*>(a->ifa_addr)->sin_addr.s_addr);
+        std::uint32_t mask = 0xFFFFFF00u;
+        if (a->ifa_netmask && a->ifa_netmask->sa_family == AF_INET)
+            mask = ntohl(reinterpret_cast<const sockaddr_in*>(a->ifa_netmask)->sin_addr.s_addr);
+        out.push_back(LocalIf{ip, mask, std::string(a->ifa_name ? a->ifa_name : "")});
+    }
+    ::freeifaddrs(list);
 #else
     // SIOCGIFCONF works on every Android API level (getifaddrs needs 24+).
     const int s = ::socket(AF_INET, SOCK_DGRAM, 0);

@@ -107,6 +107,14 @@ cd android
 ./gradlew assembleDebug
 ```
 
+iPhone / iPad (experimental: builds, not yet run on a device): built on Linux with
+[xtool](https://xtool.sh) (SwiftPM + the Darwin SDK), no Mac needed. Setup,
+game files and limitations are in **[ios/README.md](ios/README.md)**:
+
+```sh
+ios/scripts/build.sh --install
+```
+
 Developer documentation, including the test and determinism gates, the
 `--play` script harness and the architecture notes, is in
 **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
