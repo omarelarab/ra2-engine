@@ -200,6 +200,8 @@ public:
     void group_select(int n, uint32_t t_ms);
     void group_add_select(int n);
     void group_center(int n);
+    // TG-15 (touch team tabs): live, controllable units in group n.
+    int group_size(int n) const;
     int group_of(int unit_idx) const {
         return (unit_idx >= 0 && unit_idx < static_cast<int>(unit_group_.size()))
                    ? unit_group_[unit_idx] : 0;

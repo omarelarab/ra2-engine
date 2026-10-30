@@ -12,7 +12,8 @@ struct InputEvent {
     // AppLowMemory (drop caches), RenderReset (GL context lost: textures gone).
     enum Kind { None, Quit, PointerDown, PointerUp, PointerMove, Key, Text, Pan,
                 AppBackground, AppForeground, AppLowMemory, RenderReset,
-                Resize /* R-162: the window / panel changed size */ } kind = None;
+                Resize /* R-162: the window / panel changed size */,
+                Gesture /* touch: a multi-finger command gesture, `gesture` = kGest* */ } kind = None;
     int x = 0, y = 0;                       // pointer position (window pixels)
     enum Button { Left, Right } button = Left;  // valid on PointerDown/PointerUp
     bool shift = false;                     // Shift held at event time
@@ -33,7 +34,15 @@ struct InputEvent {
     // gesture started (a drag that starts on the sidebar / radar is routed there).
     bool hold = false;
     int x0 = 0, y0 = 0;
+    int gesture = 0;                        // Gesture: one of kGest* below
 };
+// Touch command gestures (TouchGestures -> GameScene, which runs the same
+// handlers as the KeyboardMD.ini hotkeys). [Engine affordance: the original is
+// mouse + keyboard only.]
+enum : int { kGestStop = 1 /* two-finger long-press */, kGestScatter /* pinch out */,
+             kGestDeploy /* pinch in */, kGestNext /* three-finger swipe right */,
+             kGestPrev /* three-finger swipe left */, kGestHome /* two-finger double tap */,
+             kGestEvent /* three-finger tap */, kGestFollow /* three-finger long-press */ };
 enum : int { kKeyBackspace = 1, kKeyEnter = 2, kKeyUp = 3, kKeyDown = 4, kKeyDelete = 5,
              kKeyF10 = 6, kKeyF1 = 7 /* P10 briefing */, kKeyEscape = 8 /* G-01 */,
              kKeyPerfToggle = 9 /* R-170: three-finger tap / Ctrl+Shift+F, eaten by the driver */ };

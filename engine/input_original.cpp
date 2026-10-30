@@ -717,6 +717,15 @@ void Input::group_select(int n, uint32_t t_ms) {
     group_add_select(n);
 }
 
+int Input::group_size(int n) const {
+    const auto& us = world_.units();
+    int c = 0;
+    for (std::size_t i = 0; i < us.size() && i < unit_group_.size(); ++i)
+        if (unit_group_[i] == n && world_.controllable(us[i].house) && us[i].alive && us[i].die_time < 0.0)
+            ++c;
+    return c;
+}
+
 void Input::group_center(int n) {
     clear_cursor_modes();
     sync_groups();

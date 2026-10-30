@@ -221,6 +221,16 @@ BOOL copy_one(NSURL* src, NSString* dst, NSString** err) {
 
 namespace ra2engine {
 
+void os_haptic() {
+    static UIImpactFeedbackGenerator* gen = nil;
+    if (!gen) {
+        gen = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+        [gen prepare];
+    }
+    [gen impactOccurred];
+    [gen prepare];
+}
+
 std::string os_ios_documents_dir() {
     return utf8(documents_path());
 }

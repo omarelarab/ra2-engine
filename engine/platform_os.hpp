@@ -41,6 +41,9 @@ int os_android_bind_lan(bool on);
 // --play harness's `lifecycle relaunch`.
 void os_set_keep_autosave(bool keep);
 bool os_keep_autosave();
+// TG: a short haptic tick when a touch gesture is recognised (iOS: a light
+// UIImpactFeedbackGenerator impact; a no-op elsewhere).
+void os_haptic();
 #ifdef RA2_IOS
 // iOS (engine/platform_ios.mm, compiled only in the iOS build):
 // the app's Documents folder (no trailing '/'; shared with the Files app and

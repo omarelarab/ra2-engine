@@ -402,7 +402,8 @@ struct RestatePage {
 class InGameMenu {
 public:
     enum Choice { None, Resume, Load, Save, Delete, Abort, Restart, Settings, Committed, MusicPlay, MusicStop,
-                  Leave, Observe, DipAlly, DipListen };   // W9-05-06/03/07 (network game)
+                  Leave, Observe, DipAlly, DipListen,   // W9-05-06/03/07 (network game)
+                  Gestures, Briefing };                 // TG-16 (touch: cheat sheet, mission briefing)
     enum Page { P_OPTIONS = 0, P_CONTROLS, P_SOUND, P_ABORT, P_DIPLOMACY };
     // W2-UI-29: one row of the Diplomacy page 0x73 (read-only in skirmish).
     // W9-05-03/07/11: `house`, the live Allies box (ally_enabled) and the
@@ -414,6 +415,7 @@ public:
     // GUI:Observe (alive, >= 2 humans alive) + Resume; the MP options page has
     // no Load / Save / Delete]. The scene refreshes it every frame.
     void set_mp(bool net, bool can_observe) { mp_net_ = net; mp_can_observe_ = can_observe; }
+    void set_touch(bool t) { touch_ = t; }   // TG-16: Game Controls adds Gestures / Briefing
     int dip_pick() const { return dip_pick_; }
     // `open_` stays a public flag (gf_scene / controls set it); open() also
     // resets the page and reseeds the controls from the user's settings.
@@ -668,8 +670,9 @@ public:
 
 private:
     enum Act { A_NONE = 0, A_CONTROLS, A_LOAD, A_SAVE, A_DELETE, A_ABORTPAGE, A_RESUME, A_SOUND, A_KEYBOARD,
-               A_BACK, A_ABORT, A_RESTART, A_LEAVE, A_OBSERVE };
+               A_BACK, A_ABORT, A_RESTART, A_LEAVE, A_OBSERVE, A_GESTURES, A_BRIEFING };
     bool mp_net_ = false, mp_can_observe_ = false;   // W9-05-06
+    bool touch_ = false;                             // TG-16
     int dip_pick_ = -1;                              // W9-05-03/07: the row's house
     enum { S_SPEED = 0, S_SCROLL, S_MUSIC, S_SOUND, S_VOICE, kSliders };
     enum { C_TARGET = 0, C_TOOLTIPS, C_HIDDEN, C_SHUFFLE, kChecks };
@@ -694,10 +697,16 @@ private:
             return ShellButton{shell_row(row), s, en, act, PAGE_MAIN};
         };
         switch (page_) {
-            case P_CONTROLS:
-                return {b(0, gf_csf("GUI:Sound", "Sound"), true, A_SOUND),
-                        b(1, gf_csf("GUI:Keyboard", "Keyboard"), true, A_KEYBOARD),
-                        b(5, gf_csf("GUI:Back", "Back"), true, A_BACK)};
+            case P_CONTROLS: {
+                std::vector<ShellButton> v{b(0, gf_csf("GUI:Sound", "Sound"), true, A_SOUND),
+                                           b(1, gf_csf("GUI:Keyboard", "Keyboard"), true, A_KEYBOARD)};
+                // TG-16 [engine affordance, touch]: the gesture cheat sheet and,
+                // in a campaign, the briefing (the old touch column's [BRF]).
+                if (touch_) v.push_back(b(2, "Gestures", true, A_GESTURES));
+                if (touch_ && campaign_) v.push_back(b(3, gf_csf("GUI:Briefing", "Briefing"), true, A_BRIEFING));
+                v.push_back(b(5, gf_csf("GUI:Back", "Back"), true, A_BACK));
+                return v;
+            }
             case P_SOUND:
                 return {b(5, gf_csf("GUI:Back", "Back"), true, A_BACK)};
             case P_DIPLOMACY:   // 0x423 GUI:Return
@@ -766,6 +775,8 @@ private:
             case A_RESTART: close(); return Restart;
             case A_LEAVE: close(); return Leave;
             case A_OBSERVE: close(); return Observe;
+            case A_GESTURES: close(); return Gestures;
+            case A_BRIEFING: close(); return Briefing;
             default: return None;
         }
     }

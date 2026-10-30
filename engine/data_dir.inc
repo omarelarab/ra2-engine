@@ -101,6 +101,37 @@ std::string data_dir_from_ini() {
     return v ? *v : std::string();
 }
 
+// TG-15 / TG-16: small [Engine] flags in RA2.INI (TouchButtons, GestureHelpSeen).
+// Read / written in place, other keys kept (save_user_settings keeps them too).
+bool engine_ini_flag(const char* key, bool def) {
+    const std::string path = data_dir_ini_path();
+    if (path.empty()) return def;
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return def;
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    const std::optional<std::string> v = ra2engine::IniDoc::parse(ss.str()).get("Engine", key);
+    if (!v || v->empty()) return def;
+    const char c = (*v)[0];
+    return c == '1' || c == 'y' || c == 'Y' || c == 't' || c == 'T';
+}
+bool engine_ini_set_flag(const char* key, bool on) {
+    const std::string path = data_dir_ini_path();
+    if (path.empty()) return false;
+    std::string text;
+    {
+        std::ifstream f(path, std::ios::binary);
+        if (f) { std::ostringstream ss; ss << f.rdbuf(); text = ss.str(); }
+    }
+    ra2engine::IniDoc doc = ra2engine::IniDoc::parse(text);
+    doc.set("Engine", key, on ? "yes" : "no");
+    std::ofstream o(path, std::ios::binary | std::ios::trunc);
+    if (!o) return false;
+    const std::string out = doc.serialize();
+    o.write(out.data(), static_cast<std::streamsize>(out.size()));
+    return static_cast<bool>(o);
+}
+
 // Persist a user-chosen data dir (missing-files page BROWSE).
 bool save_data_dir_to_ini(const std::string& dir) {
     const std::string path = data_dir_ini_path();
