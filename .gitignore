@@ -34,8 +34,10 @@
 /dist/
 # CocoIndex Code (ccc)
 /.cocoindex_code/
-# iOS (xtool / SwiftPM): build output, fetched SDL2, generated headers, and the
-# personal-testing game-data symlink (ios/scripts/link_game_data.sh)
+# iOS (xtool / SwiftPM): build output, fetched SDL2, generated headers, and
+# the personal-testing game-data folder pointer (ios/scripts/link_game_data.sh).
+# Xcode .xip (the Apple SDK download) is each user's own file, never committed.
+*.xip
 /.build/
 /.swiftpm/
 /.sourcekit-lsp/

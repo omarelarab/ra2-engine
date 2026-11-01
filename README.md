@@ -5,6 +5,9 @@ Revenge**, for **Windows and Android**. You play the original campaign,
 skirmish and multiplayer with the game files from **your own copy** of the
 game. No game data is included.
 
+The campaign mission picker (Single Player > New Campaign) is not in the
+menu for now; campaign games saved earlier still open from Load Saved Game.
+
 The engine is written from scratch in C++17 with SDL2. Its behaviour is
 calibrated against the original game: unit stats come from your own
 `rulesmd.ini`, and the rules that are not in the data files (combat, movement,
@@ -107,12 +110,15 @@ cd android
 ./gradlew assembleDebug
 ```
 
-iPhone / iPad (experimental: builds, not yet run on a device): built on Linux with
-[xtool](https://xtool.sh) (SwiftPM + the Darwin SDK), no Mac needed. Setup,
-game files and limitations are in **[ios/README.md](ios/README.md)**:
+iPhone / iPad (experimental), from Linux, macOS or Windows (inside WSL) with
+[xtool](https://xtool.sh) (SwiftPM + the Darwin SDK): no Mac, no Xcode. In the
+app you import your game files (the same `.mix` / `.csf` files as above)
+through the iOS Files picker; setup, the file list and the limitations are in
+**[ios/README.md](ios/README.md)**. For a personal test build that bundles
+your own files and installs on the device in one command:
 
 ```sh
-ios/scripts/build.sh --install
+ios/scripts/build.sh --game-data /path/to/your/RA2 --install
 ```
 
 Developer documentation, including the test and determinism gates, the

@@ -31,7 +31,11 @@ else
     trap 'rm -rf "$TMP"' EXIT
     echo "downloading $URL"
     curl -fL --retry 3 -o "$TMP/sdl2.tar.gz" "$URL"
-    echo "$SHA  $TMP/sdl2.tar.gz" | sha256sum -c -
+    if command -v sha256sum >/dev/null 2>&1; then
+        echo "$SHA  $TMP/sdl2.tar.gz" | sha256sum -c -
+    else
+        echo "$SHA  $TMP/sdl2.tar.gz" | shasum -a 256 -c -   # macOS
+    fi
     tar -xzf "$TMP/sdl2.tar.gz" -C "$TMP"
     cp -a "$TMP/SDL2-$VER/include" "$TMP/SDL2-$VER/src" "$DEST/"
 fi
