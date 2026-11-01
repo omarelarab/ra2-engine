@@ -77,8 +77,7 @@ bool pres_draw_primary_label(SDL_Renderer* ren, ra2engine::TextureCache& tc, con
             const ra2assets::FntGlyph& g = font.glyph(ch);
             if (g.w > 0 && g.h > 0) {
                 const std::string key = "fntw:" + std::to_string((int)ch);
-                SDL_Texture* tex = static_cast<SDL_Texture*>(tc.peek(key));
-                if (!tex) tex = static_cast<SDL_Texture*>(tc.get(key, g.pixels.data(), g.w, g.h, white));
+                SDL_Texture* tex = fnt_glyph_tex(ren, tc, key, g, white, 1.0);
                 SDL_Rect dst{cx, box.y + 2, g.w, g.h};
                 SDL_SetTextureColorMod(tex, hc.r, hc.g, hc.b);
                 SDL_RenderCopy(ren, tex, nullptr, &dst);

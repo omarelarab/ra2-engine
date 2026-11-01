@@ -5100,6 +5100,39 @@ int fnt_text_width(const ra2assets::Font& font, const std::string& s) {
     return w;
 }
 
+// Crisp text at any scale ("sharp bilinear"). The .fnt glyphs are pixel art;
+// drawn with nearest-neighbour at a FRACTIONAL on-screen magnification (the
+// glyph scale x the SDL logical->device factor, e.g. 2 x 1.5 on a phone, or
+// 2.25 for the 640x480 shell) some source pixels land 1 px wide and others
+// 2 px, so strokes look uneven. When the magnification is not whole, the
+// glyph texture is pre-upscaled by the next integer (nearest) and drawn with
+// linear filtering: the GPU only shrinks it by < 1 source pixel, which keeps
+// edges sharp AND every stroke the same width. Whole magnifications keep the
+// plain nearest texture (pixel-exact, no change on desktop 1:1).
+SDL_Texture* fnt_glyph_tex(SDL_Renderer* ren, ra2engine::TextureCache& tc, const std::string& key,
+                           const ra2assets::FntGlyph& g, const ra2assets::Palette& pal, double scale) {
+    float sx = 1.0f, sy = 1.0f;
+    SDL_RenderGetScale(ren, &sx, &sy);
+    const double mag = scale * std::max(sx, sy);
+    const int n = static_cast<int>(std::ceil(mag - 1e-3));
+    if (n <= 1 || std::fabs(mag - std::lround(mag)) < 1e-3) {
+        SDL_Texture* tex = static_cast<SDL_Texture*>(tc.peek(key));
+        if (!tex) tex = static_cast<SDL_Texture*>(tc.get(key, g.pixels.data(), g.w, g.h, pal));
+        return tex;
+    }
+    const int k = std::min(n, 8);
+    const std::string skey = key + "@x" + std::to_string(k);
+    SDL_Texture* tex = static_cast<SDL_Texture*>(tc.peek(skey));
+    if (tex) return tex;
+    std::vector<uint8_t> up(static_cast<size_t>(g.w) * k * g.h * k);
+    for (int y = 0; y < g.h * k; ++y)
+        for (int x = 0; x < g.w * k; ++x)
+            up[static_cast<size_t>(y) * g.w * k + x] = g.pixels[static_cast<size_t>(y / k) * g.w + x / k];
+    tex = static_cast<SDL_Texture*>(tc.get(skey, up.data(), g.w * k, g.h * k, pal));
+    if (tex) SDL_SetTextureScaleMode(tex, SDL_ScaleModeLinear);
+    return tex;
+}
+
 // [Task 5] Draw a string in the Westwood .fnt shell font at (x,y): each glyph is
 // blitted as an indexed sprite through `pal` (the make_font_palette ramp; index
 // 0 transparent), advancing x by the per-glyph width. `keypfx` namespaces the
@@ -5115,9 +5148,7 @@ void draw_fnt_text(SDL_Renderer* ren, ra2engine::TextureCache& tc, const ra2asse
             const ra2assets::FntGlyph& g = font.glyph(ch);
             if (g.w > 0 && g.h > 0) {
                 const std::string key = keypfx + std::to_string((int)ch);
-                SDL_Texture* tex = static_cast<SDL_Texture*>(tc.peek(key));
-                if (!tex)
-                    tex = static_cast<SDL_Texture*>(tc.get(key, g.pixels.data(), g.w, g.h, pal));
+                SDL_Texture* tex = fnt_glyph_tex(ren, tc, key, g, pal, scale);
                 SDL_Rect dst{cx, y, g.w * scale, g.h * scale};
                 SDL_RenderCopy(ren, tex, nullptr, &dst);
             }
@@ -5139,9 +5170,7 @@ void draw_fnt_text_f(SDL_Renderer* ren, ra2engine::TextureCache& tc, const ra2as
             const ra2assets::FntGlyph& g = font.glyph(ch);
             if (g.w > 0 && g.h > 0) {
                 const std::string key = keypfx + std::to_string((int)ch);
-                SDL_Texture* tex = static_cast<SDL_Texture*>(tc.peek(key));
-                if (!tex)
-                    tex = static_cast<SDL_Texture*>(tc.get(key, g.pixels.data(), g.w, g.h, pal));
+                SDL_Texture* tex = fnt_glyph_tex(ren, tc, key, g, pal, scale);
                 const int x0 = static_cast<int>(std::lround(cx));
                 const int x1 = static_cast<int>(std::lround(cx + g.w * scale));
                 SDL_Rect dst{x0, static_cast<int>(std::lround(y)), x1 - x0,

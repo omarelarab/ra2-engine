@@ -43,9 +43,26 @@ void game_logical_size(int& out_w, int& out_h) {
         const double px_per_dp = vdpi / 160.0;
         lh = static_cast<int>(std::lround(h / (0.75 * px_per_dp)));
         lh = std::max(520, std::min(720, lh)) & ~1;
+        // Crisp pixels: the art and the bitmap fonts are pixel art, and SDL
+        // scales the logical canvas with nearest-neighbour. A fractional
+        // factor (1080 / 598 = 1.81 on a 386-dpi phone) draws some source
+        // pixels 1 px wide and others 2 px, so text looks ragged. Prefer the
+        // nearest logical height that divides the output height exactly
+        // (1080 -> 540 = 2x) while it stays inside the 520..720 range.
+        int best = 0, best_d = 1 << 30;
+        for (int k = 1; k <= 8; ++k) {
+            if (h % k) continue;
+            const int c = h / k;
+            if (c < 520 || c > 720 || (c & 1)) continue;
+            const int d = std::abs(c - lh);
+            if (d < best_d) { best = c; best_d = d; }
+        }
+        if (best > 0) lh = best;
     }
 #endif
-    const int lw = static_cast<int>(std::lround(static_cast<double>(lh) * w / h)) & ~1;
+    // Floor (not round): SDL scales by min(w / lw, h / lh), so a width rounded
+    // UP would pull the factor below the exact integer chosen above.
+    const int lw = static_cast<int>(static_cast<long long>(lh) * w / h) & ~1;
     out_h = lh;
     out_w = std::max(lh * 16 / 9, std::min(lh * 239 / 100, lw));
 }
