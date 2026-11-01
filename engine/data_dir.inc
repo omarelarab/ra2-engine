@@ -16,6 +16,10 @@
 // page can name it.
 // Android: SDL_AndroidGetExternalStoragePath()/ra2/ (the app's own external
 // files dir, filled by the in-app importer, MTP, or adb -- see README).
+// iOS: <Documents>/ra2/ (filled by the in-app importer, the Files app or
+// Finder file sharing); a personal test build may also carry the files
+// read-only inside the app bundle (GameData/, ios/README.md), used only
+// while Documents/ra2/ has no ra2.mix.
 
 std::string g_data_dir_cli;        // --data <dir>
 std::string g_data_dir_resolved;   // cached result of env_install_dir()
@@ -97,6 +101,37 @@ std::string data_dir_from_ini() {
     return v ? *v : std::string();
 }
 
+// TG-15 / TG-16: small [Engine] flags in RA2.INI (TouchButtons, GestureHelpSeen).
+// Read / written in place, other keys kept (save_user_settings keeps them too).
+bool engine_ini_flag(const char* key, bool def) {
+    const std::string path = data_dir_ini_path();
+    if (path.empty()) return def;
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return def;
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    const std::optional<std::string> v = ra2engine::IniDoc::parse(ss.str()).get("Engine", key);
+    if (!v || v->empty()) return def;
+    const char c = (*v)[0];
+    return c == '1' || c == 'y' || c == 'Y' || c == 't' || c == 'T';
+}
+bool engine_ini_set_flag(const char* key, bool on) {
+    const std::string path = data_dir_ini_path();
+    if (path.empty()) return false;
+    std::string text;
+    {
+        std::ifstream f(path, std::ios::binary);
+        if (f) { std::ostringstream ss; ss << f.rdbuf(); text = ss.str(); }
+    }
+    ra2engine::IniDoc doc = ra2engine::IniDoc::parse(text);
+    doc.set("Engine", key, on ? "yes" : "no");
+    std::ofstream o(path, std::ios::binary | std::ios::trunc);
+    if (!o) return false;
+    const std::string out = doc.serialize();
+    o.write(out.data(), static_cast<std::streamsize>(out.size()));
+    return static_cast<bool>(o);
+}
+
 // Persist a user-chosen data dir (missing-files page BROWSE).
 bool save_data_dir_to_ini(const std::string& dir) {
     const std::string path = data_dir_ini_path();
@@ -122,6 +157,12 @@ std::vector<std::string> data_dir_candidates() {
     const char* ext = SDL_AndroidGetExternalStoragePath();
     std::string dir = ext ? ext : "/sdcard/Android/data/org.ra2.engine/files";
     c.push_back(dir + "/ra2/");
+#elif defined(RA2_IOS)
+    c.push_back(ra2engine::os_ios_documents_dir() + "/ra2/");
+    {
+        const std::string b = ra2engine::os_ios_bundle_data_dir();
+        if (!b.empty()) c.push_back(with_trailing_sep(b));
+    }
 #else
     if (!g_data_dir_cli.empty()) c.push_back(with_trailing_sep(g_data_dir_cli));
     if (const char* e = std::getenv("RA2_INSTALL_DIR")) if (*e) c.push_back(with_trailing_sep(e));
@@ -148,6 +189,12 @@ std::string resolve_data_dir() {
     const std::vector<std::string> c = data_dir_candidates();
 #if defined(__ANDROID__) && !defined(RA2_ANDROID_CLI)
     return c.front();
+#elif defined(RA2_IOS)
+    // The imported copy wins; else the bundled test data; else the (empty)
+    // Documents folder, so the missing-files page names it.
+    for (const std::string& d : c)
+        if (data_file_exists(d + "ra2.mix")) return d;
+    return c.front();
 #else
     // An EXPLICIT choice (CLI / env / INI, the first three candidates) is
     // used as given -- if it lacks the files, the missing-files page names
@@ -172,6 +219,12 @@ std::string env_install_dir() {
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::u8path(g_data_dir_resolved), ec);
     SDL_Log("[assets] android asset dir = %s", g_data_dir_resolved.c_str());
+#elif defined(RA2_IOS)
+    // Create Documents/ra2/ so it shows up in the Files app (the bundle dir,
+    // when picked, is read-only and already exists).
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::u8path(ra2engine::os_ios_documents_dir() + "/ra2/"), ec);
+    SDL_Log("[assets] ios asset dir = %s", g_data_dir_resolved.c_str());
 #endif
     return g_data_dir_resolved;
 }

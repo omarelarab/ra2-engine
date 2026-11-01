@@ -1,28 +1,39 @@
 #pragma once
-// G-70 / G-71 / W4-AM-01: touch gesture layer (Android). Pure C++17, no SDL --
-// the Platform feeds it finger events and drains the InputEvents it produces.
+// G-70 / G-71 / W4-AM-01: touch gesture layer (Android / iOS). Pure C++17, no
+// SDL -- the Platform feeds it finger events and drains the InputEvents it
+// produces.
 //
 // The original is a mouse game; its scheme (left = select AND order, right =
-// cancel/deselect, right-drag = scroll; see input_original.cpp) maps onto a
-// finger like this (W4-AM-01, the common mobile-RTS convention) [RE-FALLBACK:
-// no original touch mapping exists; the slop is Android's touch slop (8 dp
-// ~ 12 logical px); the hold is 450 ms (W6-01-11: it was 600 ms while a slow
-// tap could deselect -- W4-AM-07 made a hold never deselect, so the hold now
-// sits inside Android's own 400-500 ms long-press window)]:
-//   tap                         -> left click (select / order / sidebar / menu)
-//   one-finger drag             -> Pan (the map follows the finger)
-//   hold, then drag             -> left band box from the hold point (box select)
-//   hold, then lift             -> right click marked `hold` (cancel the armed
-//                                  mode; on a cameo: hold / abandon; on a team
-//                                  button: create the team). It NEVER deselects
-//                                  units (W4-AM-07).
-//   two-finger drag             -> Pan
-//   two-finger tap              -> right click (cancel a mode, else deselect)
-//   three-finger tap            -> Key kKeyPerfToggle (R-170: the FPS / perf
-//                                  overlay; the scene driver eats it)
-//   W6-01-11: while BOX mode is on (the sticky [BOX] button of the command
-//   column, set_box_mode), a one-finger drag draws the band box at once (no
-//   hold); two fingers still scroll.
+// cancel/deselect, right-drag = scroll; see input_original.cpp) maps onto
+// fingers like this [RE-FALLBACK: no original touch mapping exists; the slop
+// is Android's touch slop (8 dp ~ 12 logical px); the hold is 300 ms (TG-01:
+// was 450 ms; a hold no longer competes with a slow tap since W4-AM-07)]:
+//   tap                          -> left click (select / order / sidebar / menu)
+//   one-finger drag              -> Pan (the map follows the finger)
+//   hold, then drag              -> left band box from the hold point
+//   hold, then lift              -> right click marked `hold`. GameScene turns
+//                                   it into FORCE FIRE (on a target) or GUARD
+//                                   (on a selected unit) while units are
+//                                   selected, else it cancels the armed mode;
+//                                   it never deselects (W4-AM-07).
+//   TG-02 rest one finger (>= mod_rest_ms, still), then tap / drag with a
+//         second one             -> Shift click / Shift band box at the second
+//                                   finger (add to the selection); repeatable
+//                                   while the first finger rests.
+//   two-finger drag              -> Pan
+//   two-finger tap               -> right click (cancel a mode, else deselect)
+//   TG-12 two-finger double tap  -> Gesture kGestHome (the second tap only)
+//   TG-06 two-finger long-press  -> Gesture kGestStop (fires at the hold)
+//   TG-08 pinch out              -> Gesture kGestScatter
+//   TG-09 pinch in               -> Gesture kGestDeploy
+//   TG-11 three-finger swipe     -> Gesture kGestNext (right) / kGestPrev (left)
+//   TG-13 three-finger tap       -> Gesture kGestEvent (CenterOnRadarEvent)
+//   TG-14 three-finger long-press-> Gesture kGestFollow
+//   four-finger tap              -> Key kKeyPerfToggle (R-170: the FPS / perf
+//                                   overlay; was the three-finger tap)
+//   W6-01-11: while BOX mode is on (the sticky [BOX] button of the optional
+//   command column, set_box_mode), a one-finger drag draws the band box at
+//   once (no hold); two fingers still scroll.
 // Every emitted event has touch = true (GameScene then never edge-scrolls).
 // hold_feedback() reports the hold progress so the scene can draw a ring at
 // the finger before the hold fires.
@@ -36,11 +47,14 @@ namespace ra2engine {
 class TouchGestures {
 public:
     struct Config {
-        uint32_t long_press_ms = 450;
+        uint32_t long_press_ms = 300;
         int slop_px = 12;
         uint32_t two_finger_tap_ms = 300;
-        uint32_t feedback_delay_ms = 150;   // the hold ring appears after this
+        uint32_t feedback_delay_ms = 100;   // the hold ring appears after this
         uint32_t three_finger_tap_ms = 500;
+        uint32_t mod_rest_ms = 250;         // TG-02: a resting first finger is a modifier
+        uint32_t double_tap_ms = 350;       // TG-12: two two-finger taps
+        int swipe_px = 72;                  // TG-11: three-finger swipe distance
     };
     TouchGestures() = default;
     explicit TouchGestures(Config c) : cfg_(c) {}
@@ -76,23 +90,37 @@ public:
     }
 
 private:
-    enum class State { Idle, Pending, Panning, Held, BandDrag, WaitUp, TwoFinger };
-    void emit(InputEvent::Kind k, int x, int y, bool right, uint32_t t);
-    void emit_click(int x, int y, bool right, uint32_t t, bool hold = false);
+    enum class State { Idle, Pending, Panning, Held, BandDrag, WaitUp, Multi, Modifier };
+    void emit(InputEvent::Kind k, int x, int y, bool right, uint32_t t, bool shift = false);
+    void emit_click(int x, int y, bool right, uint32_t t, bool hold = false, bool shift = false);
     void emit_pan(int dx, int dy, int x, int y, uint32_t t);
+    void emit_gesture(int g, int x, int y, uint32_t t);
+    void emit_key(int key, uint32_t t);
+    void end_multi(uint32_t t);   // the first lift of a 2+ finger gesture decides it
+    void lifted();                // one finger less; WaitUp -> Idle at zero
+    int spread() const;           // two-finger distance (city block, px)
 
     Config cfg_;
     State st_ = State::Idle;
+    int down_ = 0;                            // fingers currently down
     int64_t id0_ = -1, id1_ = -1;
     int x0_ = 0, y0_ = 0, cx_ = 0, cy_ = 0;   // first finger: start / current
     int px_ = 0, py_ = 0;                     // one-finger pan: last emitted point
     int x1_ = 0, y1_ = 0;                     // second finger current
     uint32_t t0_ = 0;
-    int mid_x_ = 0, mid_y_ = 0;               // two-finger centroid (last emitted)
-    int travel_ = 0;                          // two-finger centroid travel (px)
-    uint32_t t2_ = 0;                         // two-finger start time
-    bool three_ = false;                      // R-170: a third finger joined
-    int up_left_ = 0;                         // fingers still down after a 3-finger lift
+    // Multi (2+ fingers)
+    int mid_x_ = 0, mid_y_ = 0;               // two-finger centroid (last seen)
+    int travel_ = 0;                          // centroid travel (px)
+    int sdx_ = 0, sdy_ = 0;                   // signed centroid travel (three-finger swipe)
+    uint32_t t2_ = 0;                         // multi start time
+    int fingers_ = 0;                         // most fingers seen in this gesture
+    int d0_ = 0;                              // two-finger start spread
+    int pinch_ = 0;                           // +1 out, -1 in, 0 none
+    bool fired_ = false;                      // the gesture already emitted (two-finger hold)
+    uint32_t last_two_tap_ = 0;               // TG-12: time of the last two-finger tap (0 none)
+    // Modifier (TG-02)
+    int mx0_ = 0, my0_ = 0;                   // second finger start
+    bool mod_drag_ = false;
     std::deque<InputEvent> out_;
     inline static bool box_mode_ = false;
 };

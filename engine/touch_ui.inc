@@ -209,6 +209,10 @@ void draw_touch_hold_ring(SDL_Renderer* ren) {
     // A 5 px band (dark rim, bright core) so it reads on any terrain; it
     // fills clockwise from 12 o'clock and turns green when the hold fires.
     SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
+    // TG-04: red while the hold will FORCE FIRE (units selected, no armed
+    // mode, playfield) -- green otherwise (cancel / box select).
+    const bool fire = !touch_buttons_ && !input_.selection().empty() && touch_mode() == 0 &&
+                      !input_.placement_active() && touch_playfield(hx, hy);
     const int r = 28;
     const int steps = 160;
     const int n = static_cast<int>(steps * pr);
@@ -218,6 +222,7 @@ void draw_touch_hold_ring(SDL_Renderer* ren) {
         for (int d = -2; d <= 2; ++d) {
             const bool rim = d == -2 || d == 2;
             if (rim) SDL_SetRenderDrawColor(ren, 0, 0, 0, 0xC0);
+            else if (pr >= 1.0f && fire) SDL_SetRenderDrawColor(ren, 255, 70, 50, 0xFF);
             else if (pr >= 1.0f) SDL_SetRenderDrawColor(ren, 120, 255, 120, 0xFF);
             else SDL_SetRenderDrawColor(ren, 255, 235, 120, 0xFF);
             SDL_RenderDrawPoint(ren, hx + static_cast<int>(std::lround((r + d) * ca)),
@@ -232,10 +237,11 @@ void touch_hint_tick(double dt) {
     touch_hint_left_ -= dt;
 }
 void draw_touch_hint(SDL_Renderer* ren) {
-    if (!touch_ui_ || input_locked_ || touch_hint_left_ <= 0.0 || menu_.open_ || sld_.is_open()) return;
+    if (!touch_ui_ || input_locked_ || touch_hint_left_ <= 0.0 || menu_.open_ || sld_.is_open() ||
+        gesture_help_) return;
     static const char* kLines[3] = {"DRAG: SCROLL    TAP: SELECT / ORDER",
-                                    "DOUBLE TAP: ALL OF TYPE    HOLD + DRAG: BOX",
-                                    "HOLD: CANCEL MODE    TWO-FINGER TAP: DESELECT"};
+                                    "HOLD + DRAG: BOX    HOLD ON TARGET: FORCE FIRE",
+                                    "ALL GESTURES: OPTIONS > GAME CONTROLS > GESTURES"};
     const int w = std::min(playfield_w_ - 16, 46 * 12 + 16);
     const int y = touch_banner_visible() ? kWinH - 60 - 72 : kWinH - 72;
     const SDL_Rect r{(playfield_w_ - w) / 2, y, w, 66};

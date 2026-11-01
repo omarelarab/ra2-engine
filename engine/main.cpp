@@ -6185,7 +6185,8 @@ enum ShellAction { ACT_NONE = 0, ACT_GOTO, ACT_SKIRMISH, ACT_QUIT, ACT_LOADGAME 
                    ACT_MOVIES /* W6-06-13: Play Movies (movies_page.inc) */,
                    ACT_ABOUT /* W6-06-16: Options > About (about_page.inc) */,
                    ACT_MP_LAN /* multiplayer: Network -> LAN browser (mp_pages.inc) */,
-                   ACT_MP_ONLINE /* multiplayer: Internet -> own ra2lobbyd server (mp_pages.inc) */ };
+                   ACT_MP_ONLINE /* multiplayer: Internet -> own ra2lobbyd server (mp_pages.inc) */,
+                   ACT_TOUCHBAR /* TG-15: Options > Touch Bar on/off (RA2.INI [Engine] TouchButtons) */ };
 bool movies_supplied();   // W6-06-13 (movies_page.inc)
 
 // One owner-draw menu button in LOGICAL 640x480 space. layout() builds these;
@@ -6449,6 +6450,10 @@ Scene* defer_load_scene(bool no_audio, ra2engine::save::SaveFile f);
 // treated as refused after load_world has run over the scene's World -- the
 // failure path a bad save takes, without needing a bad file.
 bool g_play_poison_next_load = false;
+// True while a --play script drives the game (set in main() before run_play):
+// the harness keeps UI that players no longer see by default (the touch
+// command column, see touch_bar.inc), so the existing scripts still run.
+bool g_play_harness = false;
 bool g_resumed_from_autosave = false;
 bool g_resumed_from_autosave_take() {
     const bool r = g_resumed_from_autosave;
@@ -7640,6 +7645,7 @@ private:
         }
         if (menu_.open_) {
             menu_.set_mp(net_ != nullptr, mp_can_observe());   // W9-05-06: the MP page set
+            menu_.set_touch(touch_ui_ && !mouse_present_);         // TG-16
             const auto menu_act = menu_.handle(ev);
             if (net_ && (menu_act == InGameMenu::Load || menu_act == InGameMenu::Save ||
                          menu_act == InGameMenu::Delete)) {   // NET-PLAY: a shared match is not saved / loaded
@@ -7675,6 +7681,8 @@ private:
                         pres_.sound().jukebox_play(jukebox_sections_[(std::size_t)menu_.music_track()]);
                     break;
                 case InGameMenu::MusicStop: pres_.sound().music_stop(); break;
+                case InGameMenu::Gestures: gesture_help_ = true; break;   // TG-16
+                case InGameMenu::Briefing: show_briefing_ = true; break;  // TG-16 (was [BRF])
                 default: break;
             }
             return true;
@@ -8668,7 +8676,7 @@ struct OptionsPageState {
         return m;
     }
     static bool res_supported() {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(RA2_IOS)
         return false;
 #else
         return true;
@@ -8886,6 +8894,7 @@ private:
     // buttons render dimmed frame 2 and are NOT hit-tested.
     static constexpr int kBtnX = 484, kBtnW = 156, kBtnH = 42;
     static int rowY(int k) { return 199 + 42 * k; }
+    bool touch_bar_ini_ = engine_ini_flag("TouchButtons", false);   // TG-15
     std::vector<ShellButton> layout() const {
         auto btn = [](int row, const char* s, bool en, int act, ShellPage t) {
             return ShellButton{ {kBtnX, rowY(row), kBtnW, kBtnH}, s, en, act, t }; };
@@ -8912,11 +8921,14 @@ private:
                 return {
                     btn(0, "Keyboard",  true,  ACT_KEYBOARD, PAGE_OPTIONS),
                     btn(1, "Network",   false, ACT_GOTO, PAGE_MAIN),
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(RA2_IOS)
                     // W6-06-05 [engine affordance]: add or replace game files
                     // at any time (the launcher only offers it when a
                     // required file is missing).
                     btn(2, "Game Files", true, ACT_IMPORT, PAGE_OPTIONS),
+                    // TG-15: the old touch command column instead of the
+                    // gestures' team tabs (off by default).
+                    btn(4, touch_bar_ini_ ? "Touch Bar: On" : "Touch Bar: Off", true, ACT_TOUCHBAR, PAGE_OPTIONS),
 #endif
                     // W6-06-16: version, licence, third-party notices, disclaimer.
                     btn(3, "About",     true,  ACT_ABOUT, PAGE_OPTIONS),
@@ -8975,6 +8987,8 @@ private:
             if (b.label == "Network" && page_ == PAGE_OPTIONS) return gf_csf("STT:MainOptButtonNetwork", "");
             if (b.label == "Game Files") return "Add or replace the game files (the game restarts)";
             if (b.label == "About") return "Version, licence and third-party notices";
+            if (b.label.rfind("Touch Bar", 0) == 0)
+                return "Show the old command buttons instead of gestures + team tabs";
             const char* k = stt_key(b.label);
             return k ? gf_csf(k, "") : std::string();
         }
@@ -9506,6 +9520,10 @@ void MainMenuScene::handle(const ra2engine::InputEvent& ev) {
             case ACT_CAMPAIGN_SOVIET: next_ = make_campaign_start_scene(no_audio_, "SOV1", "Nod"); return;
             case ACT_CREDITS: next_ = new CreditsScene(rules_, no_audio_, art_); return;   // W2-UI-26
             case ACT_MOVIES: next_ = new MoviesPageScene(rules_, no_audio_, art_); return;   // W6-06-13
+            case ACT_TOUCHBAR:   // TG-15: read by the next game (GameScene::touch_buttons_)
+                touch_bar_ini_ = !touch_bar_ini_;
+                engine_ini_set_flag("TouchButtons", touch_bar_ini_);
+                return;
             case ACT_ABOUT:   // W6-06-16 (Options are committed + saved as on leaving the page)
                 if (g_user_settings) {
                     opt_.commit(*g_user_settings);
@@ -9520,7 +9538,14 @@ void MainMenuScene::handle(const ra2engine::InputEvent& ev) {
                     opt_.commit(*g_user_settings);
                     save_user_settings(*g_user_settings);
                 }
+#ifdef RA2_IOS
+                // iOS: the importer runs in place (a modal folder picker);
+                // the files are read on the next start, so quit when it
+                // copied something (the importer has told the player).
+                if (ra2engine::os_ios_import_game_files(/*restart_note=*/true) > 0) quit_ = true;
+#else
                 if (ra2engine::os_android_open_importer()) quit_ = true;
+#endif
                 return;
             case ACT_CAMPAIGN_LOAD:   // W2-UI-18: 0x94 Load = the selected campaign
                 if (camp_.selected() >= 0 && camp_.selected() < CampaignPageState::kEntries) {
@@ -18713,8 +18738,8 @@ int main(int argc, char** argv) {
     SDL_SetMainReady();   // Net L0: plain executable, no SDLActivity
 #endif
     try {
-#if defined(__ANDROID__) && !defined(RA2_ANDROID_CLI)
-        // Android launches straight into the interactive engine: there is no
+#if (defined(__ANDROID__) && !defined(RA2_ANDROID_CLI)) || defined(RA2_IOS)
+        // Android / iOS launch straight into the interactive engine: there is no
         // CLI, so the desktop-only verification modes (--screenshot/--demo-*)
         // are unreachable here. Touch drives select/move (see platform.cpp
         // SDL_FINGER* handling + input.cpp).
@@ -18786,6 +18811,7 @@ int main(int argc, char** argv) {
         // REAL shell scene tree with scripted input (engine/play_driver.inc).
         if (argc >= 3 && std::string(argv[1]) == "--play") {
             const std::string out = (argc >= 5 && std::string(argv[3]) == "--out") ? argv[4] : "";
+            g_play_harness = true;
             return run_play(argv[2], out);
         }
         std::string screenshot;

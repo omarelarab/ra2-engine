@@ -201,6 +201,9 @@ int os_android_bind_lan(bool) { return 1; }
 // W6-01-10: see platform_os.hpp.
 static std::atomic<bool> g_keep_autosave{false};
 void os_set_keep_autosave(bool keep) { g_keep_autosave = keep; }
+#ifndef RA2_IOS
+void os_haptic() {}   // iOS: platform_ios.mm
+#endif
 bool os_keep_autosave() { return g_keep_autosave; }
 
 }  // namespace ra2engine
