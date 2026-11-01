@@ -220,7 +220,7 @@ void draw_touch_bar(SDL_Renderer* ren) {
         draw_text(ren, label, r.x + (r.w - lw) / 2, r.y + (r.h - 7 * scale) / 2, scale, 235, 225, 200);
     }
 }
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(RA2_IOS)
 bool touch_ui_ = true;    // a phone: the column is there from the first frame
 #else
 bool touch_ui_ = false;   // desktop: appears after the first touch event

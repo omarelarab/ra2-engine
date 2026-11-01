@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>RA2 Engine</string>
+    <key>CFBundleName</key>
+    <string>RA2 Engine</string>
+
+    <!-- A launch screen is what makes iOS run the app at the device's full
+         resolution (without one it is letterboxed to a legacy size). -->
+    <key>UILaunchScreen</key>
+    <dict/>
+
+    <!-- Landscape only, full screen, no status bar (platform.cpp agrees). -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UIRequiresFullScreen</key>
+    <true/>
+    <key>UIStatusBarHidden</key>
+    <true/>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
+    <!-- iPad trackpad / mouse arrive as pointer events (SDL mouse). -->
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
+    <key>UIDeviceFamily</key>
+    <array>
+        <integer>1</integer>
+        <integer>2</integer>
+    </array>
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>arm64</string>
+        <string>metal</string>
+    </array>
+
+    <!-- Documents/ (the engine's ra2/ data folder, saves of an import) shows
+         in the Files app and in Finder / iTunes file sharing. -->
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
+
+    <!-- LAN multiplayer (iOS 14+ asks the player once). -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Finds and joins Red Alert 2 multiplayer games on your local network.</string>
+    <!-- SDL's HIDAPI backend links CoreBluetooth; it is off in this build,
+         the string only keeps App Store / TestFlight validation quiet. -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Used only for Bluetooth game controllers.</string>
+</dict>
+</plist>

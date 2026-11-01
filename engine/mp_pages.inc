@@ -715,7 +715,7 @@ protected:
     int mx_ = -1, my_ = -1;
     bool down_ = false;
     double clock_ = 0.0;
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(RA2_IOS)
     bool touch_seen_ = true;                 // W9-04-06: a phone starts in touch metrics
 #else
     bool touch_seen_ = false;

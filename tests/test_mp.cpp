@@ -695,6 +695,8 @@ TEST_CASE("mp: W9-04-13 LAN beacon carries the host platform + cross-platform fl
     CHECK(back.room == "R");
     CHECK(std::string(platform_name(1)) == "PC");
     CHECK(std::string(platform_name(2)) == "Android");
+    CHECK(std::string(platform_name(4)) == "iOS");
+    CHECK(std::string(platform_name(5)).empty());
 }
 
 TEST_CASE("mp: W9-04-10 the host's address to type prefers Wi-Fi / LAN over mobile data") {

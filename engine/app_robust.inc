@@ -37,7 +37,7 @@ void game_logical_size(int& out_w, int& out_h) {
     g_platform->output_size(w, h);
     if (w <= 0 || h <= 0) return;
     int lh = 720;
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(RA2_IOS)
     float ddpi = 0, hdpi = 0, vdpi = 0;
     if (SDL_GetDisplayDPI(0, &ddpi, &hdpi, &vdpi) == 0 && vdpi > 0.0f) {
         const double px_per_dp = vdpi / 160.0;
@@ -66,6 +66,11 @@ std::string autoshot_dir() {
     const char* ext = SDL_AndroidGetExternalStoragePath();
     if (!ext) return {};
     const std::string d = std::string(ext) + "/autoshot/";
+    std::error_code ec;
+    return std::filesystem::is_directory(d, ec) ? d : std::string();
+#elif defined(RA2_IOS)
+    // iOS: <Documents>/autoshot/ when that folder exists (Files app).
+    const std::string d = ra2engine::os_ios_documents_dir() + "/autoshot/";
     std::error_code ec;
     return std::filesystem::is_directory(d, ec) ? d : std::string();
 #else
@@ -457,6 +462,13 @@ bool ensure_data_files(ra2engine::Platform& plat) {
         lines.push_back("   PICK THAT FOLDER - THE APP COPIES THEM IN.");
         lines.push_back(" - OR COPY THEM INTO THE FOLDER ABOVE OVER USB (MTP).");
         const std::vector<std::string> buttons = {"RETRY", "IMPORT", "EXIT"};
+#elif defined(RA2_IOS)
+        lines.push_back("COPY THEM FROM YOUR RED ALERT 2 INSTALL:");
+        lines.push_back(" - IMPORT: PUT THE RA2 FOLDER IN THE FILES APP (ICLOUD DRIVE OR");
+        lines.push_back("   ON MY IPHONE/IPAD), TAP IMPORT AND PICK IT - THE APP COPIES THEM IN.");
+        lines.push_back(" - OR COPY THEM INTO FILES > RA2 ENGINE > RA2 (OR FINDER/ITUNES");
+        lines.push_back("   FILE SHARING FROM A COMPUTER), THEN TAP RETRY.");
+        const std::vector<std::string> buttons = {"RETRY", "IMPORT", "EXIT"};
 #else
         lines.push_back("COPY THEM FROM YOUR RED ALERT 2 INSTALL INTO THAT FOLDER, OR");
         lines.push_back("PICK THE INSTALL FOLDER WITH BROWSE (SAVED IN RA2.INI [ENGINE] DATADIR),");
@@ -468,6 +480,8 @@ bool ensure_data_files(ra2engine::Platform& plat) {
         if (choice < 0 || choice == static_cast<int>(buttons.size()) - 1) return false;
 #ifdef __ANDROID__
         if (choice == 1 && ra2engine::os_android_open_importer()) return false;   // the importer takes over
+#elif defined(RA2_IOS)
+        if (choice == 1) ra2engine::os_ios_import_game_files(/*restart_note=*/false);   // modal; then re-check
 #else
         if (choice == 1) {
             const std::string picked = ra2engine::os_browse_folder("Select your Red Alert 2 folder");
